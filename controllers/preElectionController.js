@@ -2,6 +2,8 @@ const Student = require("../models/studentsSchema");
 const sendEmail = require("../utils/emailSystem");
 const bcrypt = require("bcrypt");
 const generateUniqueHash = require("../utils/generateHash");
+const Category = require("../models/categorySchema");
+const Candidate = require("../models/CandidateSchema");
 
 
 const registerForElection = async (request, response)=>{
@@ -216,6 +218,139 @@ const approveRegistrant = async (request, response) =>{
         console.log(error);
         response.status(500).json({status:false,message:"Internal Server Error"});
     }
-} 
+}
 
-module.exports = {registerForElection,getRegisteredCandidates,approveRegistrant}
+const createElectionCategory = async (request, response)=>{
+
+    const name = request.body.name;
+
+    try{
+
+    if(!name){
+        return response.status(400).json({status:false, message:"Category Name is Required"});
+    }
+
+    const categoryExists = await Category.findOne({name:name.toLowerCase()});
+
+    if(categoryExists){
+        return response.status(400).json({status:false,message:"Election Category Exists"});
+    }
+
+
+    await Category.create({name:name.toLowerCase()});
+
+    response.status(200).json({status:true, message:"Election Category Created"})
+
+    }catch(error){
+        console.log(error);
+        response.status(500).json({status:false, message:"Internal Server Error"})
+    }
+}
+
+const getElectionCategories = async (request, response)=>{
+
+    try{
+
+
+    const categories = await Category.find({},{name:1,totalCandidates:1}).sort({createdAt:-1});
+
+    response.status(200).json({status:true, categories});
+
+
+
+    }catch(error){
+        console.log(error);
+        response.status(500).json({status:false,message:"Internal Server Error"})
+    }
+
+
+}
+
+
+const deleteElectionCategory = async (request, response)=>{
+
+    const id = request.params.id
+
+    try{
+
+        const category = await Category.findById(id);
+
+        if(!category){
+            return response.status(400).json({status:false,message:"Category Not Found"});
+        }
+        
+        await Category.findOneAndDelete({_id:id});
+
+        await Candidate.deleteMany({position:id});
+
+        response.status(200).json({status:true, message:"Election Category Deleted Successfully"})
+
+
+    }catch(error){
+        console.log(error);
+        response.status(500).json({status:false,message:"internal Server Error"})
+    }
+}
+
+
+const addCandidate = async (request, response)=>{
+
+    const {candidateName, image, matNo, category,bio} = request.body;
+
+    try{
+
+    
+    if(!candidateName || !image || !matNo || !category || !bio){
+        return response.status(400).json({status:false,message:"All Fields Are Required"});
+    }
+
+    const cat = await Category.findById(category);
+
+    if(!cat){
+        return response.status(400).json({status:false,message:"Category Not Found"}); 
+    }
+
+    const matNoPattern = /^DE:\d{4}\/\d+$/;
+
+    if (!matNoPattern.test(matNo)) {
+        return response.status(400).json({ status: false, message: "Matriculation Number should be in the format DE:year/number" });
+    }
+
+    const candidateEists = await Candidate.findOne({matNo});
+
+    if(candidateEists){
+        return response.status(400).json({status:false,message:"Candidate Already Added"}); 
+    }
+
+    await Candidate.create({name:candidateName,position:category,image,bio,matNo});
+
+    cat.totalCandidates += 1;
+    await cat.save();
+
+    response.status(200).json({status:true,message:"Candidate Added Successfully"})
+
+
+    }catch(error){
+        console.log(error);
+        response.status(500).json({status:false,message:"Internal Server Error"})
+    }
+};
+
+const getCandidates = async (request, response)=>{
+
+    try{
+
+    const candidates = await Candidate.find().sort({createdAt:-1}).populate("position","name");
+
+    response.status(200).json({status:true, candidates})
+
+
+
+
+    }catch(error){
+        console.log(error);
+        response.status(500).json({status:false, message:"Internal Server Error"})
+    }
+}
+
+module.exports = {registerForElection,getRegisteredCandidates,approveRegistrant,createElectionCategory,getElectionCategories,deleteElectionCategory,addCandidate, getCandidates}

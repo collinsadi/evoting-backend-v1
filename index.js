@@ -17,12 +17,14 @@ app.use(cors());
 
 
 const preElectionRoutes = require("./routes/preElectionRoutes");
+const electionRoutes = require("./routes/electionRoutes")
 
 
 
 
 
 app.use("/api/v1/pre-election",preElectionRoutes);
+app.use("/api/v1/election",electionRoutes);
 
 
 
